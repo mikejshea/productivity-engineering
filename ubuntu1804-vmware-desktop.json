@@ -1,0 +1,134 @@
+{
+  "builders": [
+    {
+      "vm_name": "{{user `vm_name`}}",
+      "vmdk_name": "{{user `vm_name`}}",
+      "type": "vmware-iso",
+      "headless": "{{user `headless`}}",
+      "disk_size": "{{user `disk_size`}}",
+      "disk_additional_size": "{{user `disk_additional_size`}}",
+      "disk_type_id": 0,
+      "guest_os_type": "ubuntu-64",
+      "iso_url": "{{user `iso_file`}}",
+      "iso_checksum": "{{user `iso_checksum_value`}}",
+      "iso_checksum_type": "sha256",
+      "output_directory": "{{user `output_directory`}}",
+      "ssh_username": "prodeng",
+      "ssh_password": "{{user `ssh_password`}}",
+      "ssh_timeout": "{{user `ssh_wait_timeout`}}",
+      "shutdown_command": "echo 'prodeng'|sudo -S shutdown -P now",
+      "http_directory": "http",
+      "vmx_data": {
+        "cpuid.coresPerSocket": "2",
+        "memsize": "{{user `memsize`}}",
+        "numvcpus": "{{user `numvcpus`}}",
+        "virtualhw.version": "15"
+      },
+      "vmx_data_post":
+      {
+        "ethernet0.present":"TRUE",
+        "ethernet0.connectionType":"bridged",
+        "ethernet0.virtualDev":"e1000",
+        "ethernet0.wakeOnPcktRcv":"FALSE",
+        "ethernet0.addressType":"generated"
+      },
+      "boot_wait": "10s",
+      "boot_command": [
+        "<esc><f6><esc>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs><bs><bs><bs><bs><bs><bs><bs>",
+        "<bs><bs><bs>",
+        "/install/vmlinuz ",
+        "preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg ",
+        "debian-installer=en_US auto=true locale=en_US kbd-chooser/method=us ",
+        "console-setup/ask_detect=false keyboard-configuration/layoutcode=us ",
+        "hostname={{user `vm_name`}} ",
+        "initrd=/install/initrd.gz quiet --- <enter>"
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "destination": "~/01-netcfg.yaml",
+      "source": "{{ user `netcfg` }}",
+      "type": "file"
+    },
+    {
+      "type": "shell",
+      "inline": "mv ~/01-netcfg.yaml /etc/netplan/01-netcfg.yaml",
+      "override": {
+        "vmware-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "hostnamectl set-hostname {{ user `vm_name` }}",
+      "type": "shell",
+      "override": {
+        "vmware-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "mkdir /data && chown {{ user `ssh_password`}}:{{ user `ssh_password`}} /data && chmod 777 /data",
+      "type": "shell",
+      "override": {
+        "vmware-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "mkdir /data/dev-env && chown {{ user `ssh_password`}}:{{ user `ssh_password`}} /data/dev-env && chmod 777 /data/dev-env",
+      "type": "shell",
+      "override": {
+        "vmware-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "destination": "/data/init.sh",
+      "source": "scripts\\init.sh",
+      "type": "file"
+    },
+    {
+      "destination": "/data/dev-setup.sh",
+      "source": "scripts\\dev-setup.sh",
+      "type": "file"
+    },
+    {
+      "destination": "/data/init-vm.sh",
+      "source": "scripts\\init-vbox.sh",
+      "type": "file"
+    },
+    {
+      "script": "scripts\\init.sh",
+      "type": "shell",
+      "override": {
+        "vmware-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "echo {{ user `hostname` }} > ~/hostname.txt",
+      "type": "shell"
+    },
+    {
+      "destination": "/data/dev-env/",
+      "source": "scripts\\dev-env\\",
+      "type": "file"
+    }
+  ],
+  "post-processors": [
+  ]
+}

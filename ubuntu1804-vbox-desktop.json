@@ -1,0 +1,155 @@
+{
+  "builders": [
+    {
+      "boot_command": [
+        "<esc><wait>",
+        "<esc>",
+        "<enter><wait>",
+        "/install/vmlinuz",
+        " auto",
+        " console-setup/ask_detect=false",
+        " console-setup/layoutcode=us",
+        " console-setup/modelcode=pc105",
+        " debconf/frontend=noninteractive",
+        " debian-installer=en_US",
+        " fb=false",
+        " initrd=/install/initrd.gz",
+        " kbd-chooser/method=us",
+        " keyboard-configuration/layout=USA",
+        " keyboard-configuration/variant=USA",
+        " locale=en_US",
+        " netcfg/get_domain=vm",
+        " netcfg/get_hostname={{user `vm_name`}}",
+        " grub-installer/bootdev=/dev/sda",
+        " noapic",
+        " preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg<wait>",
+        " -- <wait>",
+        "<enter><wait>"
+      ],
+      "boot_wait": "15s",
+      "disk_size": "{{user `disk_size`}}",
+      "guest_os_type": "Ubuntu_64",
+      "headless": "{{user `headless`}}",
+      "http_directory": "http",
+      "iso_checksum": "{{user `iso_checksum_value`}}",
+      "iso_checksum_type": "sha256",
+      "iso_url": "{{user `iso_file`}}",
+      "output_directory": "{{user `output_directory`}}",
+      "shutdown_command": "echo '{{ user `ssh_password`}}'|sudo -S shutdown -P now",
+      "ssh_username": "{{ user `ssh_username` }}",
+      "ssh_password": "{{user `ssh_password`}}",
+      "ssh_timeout": "{{user `ssh_wait_timeout`}}",
+      "type": "virtualbox-iso",
+      "vm_name": "{{user `vm_name`}}",
+      "skip_export": true,
+      "keep_registered": true,
+      "vboxmanage": [
+        [ "modifyvm", "{{.Name}}", "--memory", "{{user `memsize`}}" ],
+        [ "modifyvm", "{{.Name}}", "--cpus", "{{user `numvcpus`}}" ],
+        [ "storageattach", "{{.Name}}",
+          "--storagectl", "IDE Controller",
+          "--passthrough", "off",
+          "--type", "dvddrive",
+          "--port", "1",
+          "--device", "0",
+          "--medium", "{{user `guest_additions_path`}}"
+        ]
+      ],
+      "vboxmanage_post": [
+        [ "modifyvm", "{{.Name}}", "--nic1", "nat" ],
+        [ "modifyvm", "{{.Name}}", "--nictype1", "82540EM" ],
+        [ "modifyvm", "{{.Name}}", "--nic2", "hostonly" ],
+        [ "modifyvm", "{{.Name}}", "--nictype2", "82540EM" ],
+        [ "modifyvm", "{{.Name}}", "--clipboard-mode", "bidirectional" ],
+        [ "modifyvm", "{{.Name}}", "--draganddrop", "bidirectional" ],
+        [ "modifyvm", "{{.Name}}", "--vrde", "off" ],
+        [ "modifyvm", "{{.Name}}", "--graphicscontroller", "vmsvga" ],
+        [ "modifyvm", "{{.Name}}", "--vram", "128" ],
+        [ "modifyvm", "{{.Name}}", "--hostonlyadapter2", "{{user `hostonlyadapter1`}}" ],
+        [ "sharedfolder", "add", "{{.Name}}",
+          "--name", "prodeng",
+          "--hostpath", "{{user `shared_folder`}}",
+          "--automount"
+        ]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "destination": "~/01-netcfg.yaml",
+      "source": "{{ user `netcfg` }}",
+      "type": "file"
+    },
+    {
+      "type": "shell",
+      "inline": "mv ~/01-netcfg.yaml /etc/netplan/01-netcfg.yaml",
+      "override": {
+        "virtualbox-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "hostnamectl set-hostname {{ user `vm_name` }}",
+      "type": "shell",
+      "override": {
+        "virtualbox-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "mkdir /data && chown {{ user `ssh_password`}}:{{ user `ssh_password`}} /data && chmod 777 /data",
+      "type": "shell",
+      "override": {
+        "virtualbox-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "mkdir /data/dev-env && chown {{ user `ssh_password`}}:{{ user `ssh_password`}} /data/dev-env && chmod 777 /data/dev-env",
+      "type": "shell",
+      "override": {
+        "virtualbox-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "destination": "/data/init.sh",
+      "source": "scripts\\init.sh",
+      "type": "file"
+    },
+    {
+      "destination": "/data/dev-setup.sh",
+      "source": "scripts\\dev-setup.sh",
+      "type": "file"
+    },
+    {
+      "destination": "/data/init-vm.sh",
+      "source": "scripts\\init-vbox.sh",
+      "type": "file"
+    },
+    {
+      "script": "scripts\\init.sh",
+      "type": "shell",
+      "override": {
+        "virtualbox-iso": {
+          "execute_command": "echo '{{ user `ssh_password`}}' | sudo -S bash {{.Path}}"
+        }
+      }
+    },
+    {
+      "inline": "echo {{ user `hostname` }} > ~/hostname.txt",
+      "type": "shell"
+    },
+    {
+      "destination": "/data/dev-env/",
+      "source": "scripts\\dev-env\\",
+      "type": "file"
+    }
+  ],
+  "post-processors": [
+  ]
+}
